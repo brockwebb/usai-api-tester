@@ -358,13 +358,7 @@ def display_response(response: requests.Response, model_id: str, config: dict):
         if usage:
             prompt_tok = usage.get("prompt_tokens", 0)
             comp_tok = usage.get("completion_tokens", 0)
-            api_total = usage.get("total_tokens", 0)
-            computed_total = prompt_tok + comp_tok
-            if api_total != computed_total and api_total > 0:
-                print(c_dim(f"  tokens: {prompt_tok} in → {comp_tok} out ({computed_total} total)"))
-                print(c_warn(f"  note: API reported {api_total} total tokens (mismatch)"))
-            else:
-                print(c_dim(f"  tokens: {prompt_tok} in → {comp_tok} out ({computed_total} total)"))
+            print(c_dim(f"  tokens: {prompt_tok} in → {comp_tok} out"))
 
     elif response.status_code == 401:
         print(c_error("\n  Authentication failed (401)."))
@@ -415,6 +409,9 @@ def display_model_menu(config: dict) -> str | None:
 
     while True:
         choice = input(f"  {c_header('Select model')} [1-{len(index_map)}]: ").strip()
+        if choice.lower() in ("quit", "exit", "q"):
+            print(f"\n  {c_dim('Goodbye.')}")
+            sys.exit(0)
         if choice.isdigit() and int(choice) in index_map:
             return index_map[int(choice)]
         print(c_error(f"  Enter a number 1-{len(index_map)}"))
@@ -483,21 +480,12 @@ def main():
 
     print(c_dim(f"  Found {len(live_models)} models."))
 
-    # Pick default model
-    default_id = config.get("default_model", "")
-    model_info = get_model_by_id(config, default_id)
-    if model_info:
-        current_model = default_id
-    else:
-        # Default not found in live list — let user pick
-        if default_id:
-            print(c_warn(f"  Default model '{default_id}' not available. Pick one:"))
-        else:
-            print(c_dim("  Select a model to start:"))
-        current_model = display_model_menu(config)
-        if not current_model:
-            sys.exit(1)
-        model_info = get_model_by_id(config, current_model)
+    # Always let the user pick their model
+    print()
+    current_model = display_model_menu(config)
+    if not current_model:
+        sys.exit(1)
+    model_info = get_model_by_id(config, current_model)
 
     print()
     print(f"  {c_dim('Endpoint:')} {base_url}")
@@ -566,6 +554,10 @@ def main():
                 choice = input(f"  {c_header('Choice')} [1]: ").strip()
             except (EOFError, KeyboardInterrupt):
                 print(f"\n\n  {c_dim('Goodbye.')}")
+                sys.exit(0)
+
+            if choice.lower() in ("quit", "exit", "q"):
+                print(f"\n  {c_dim('Goodbye.')}")
                 sys.exit(0)
 
             if choice in ("", "1"):
