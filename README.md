@@ -11,7 +11,7 @@ A minimal CLI tool for testing and exploring the [USAi](https://www.usai.gov) fe
 USAi provides a unified, OpenAI-compatible REST API that gives federal government users access to multiple LLM providers through a single gateway:
 
 - **Google:** Gemini 2.5 Flash, Gemini 2.5 Pro
-- **Anthropic:** Claude Haiku 3.5, Claude Sonnet 4.5, Claude Opus 4.5
+- **Anthropic:** Claude 3.5 Haiku, Claude Sonnet 4.5, Claude Opus 4.5
 - **Meta:** Llama 3.2 11B, Llama 4 Maverick
 - **Embeddings:** Cohere English v3
 
@@ -88,6 +88,8 @@ Then edit `.env`:
 USAI_API_KEY=your-actual-key-here
 USAI_BASE_URL=https://your-agency-endpoint.usai.gov
 ```
+
+Your API base URL (endpoint) can be found in the [USAi console](https://www.usai.gov) under the **API** tab in the left menu.
 
 **API keys rotate every 7 days.** When your key expires, the app will detect the 401 error and prompt you for a new one automatically.
 
