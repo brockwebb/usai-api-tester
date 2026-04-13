@@ -44,6 +44,37 @@ STARTUP_QUIPS = [
     '"No context was harmed in the making of this API call."',
     '"Welcome back. I have no idea who you are. That\'s by design."',
     '"Remember: every call is a first date. No history, no baggage."',
+    '"These aren\'t the tokens you\'re looking for."',
+    '"I find your lack of system prompts disturbing."',
+    '"In a hole in the ground there lived a language model. Not a nasty, dirty, wet hole."',
+    '"One does not simply walk into a rate limit."',
+    '"The API is strong with this one."',
+    '"Shall we play a game? ...just kidding, stateless remember?"',
+    '"I\'m sorry, Dave. I\'m afraid I can do that. What\'s your prompt?"',
+    '"Highly illogical to not test your API key first."',
+    '"Space: the final front-end. These are the voyages of your API calls."',
+    '"It\'s a trap! ...no wait, it\'s just a 429."',
+    '"Do. Or do not. There is no try-catch. Actually there is."',
+    '"Hello there. General API."',
+]
+
+FAREWELL_QUIPS = [
+    "Live long and prosper. 🖖",
+    "May the Force be with you.",
+    "End of line.",
+    "I am and always shall be your friend.",
+    "So long, and thanks for all the tokens.",
+    "The board is set. The pieces are moving.",
+    "Not all those who wander are lost. But this session is over.",
+    "I've seen things you people wouldn't believe. Time to go.",
+    "Tea. Earl Grey. Hot. ...actually, just shutting down.",
+    "Make it so. ...make it stop.",
+    "Engage. Wait, no. Disengage.",
+    "The needs of the many outweigh the needs of this session.",
+    "Resistance is futile. But quitting is not.",
+    "To infinity and... actually, just to the command prompt.",
+    "My precious... tokens. They're gone now.",
+    "A wizard is never late, nor is he early. He quits precisely when he means to.",
 ]
 
 SWITCH_QUIPS = [
@@ -410,7 +441,7 @@ def display_model_menu(config: dict) -> str | None:
     while True:
         choice = input(f"  {c_header('Select model')} [1-{len(index_map)}]: ").strip()
         if choice.lower() in ("quit", "exit", "q"):
-            print(f"\n  {c_dim('Goodbye.')}")
+            print(f"\n  {c_dim(random.choice(FAREWELL_QUIPS))}")
             sys.exit(0)
         if choice.isdigit() and int(choice) in index_map:
             return index_map[int(choice)]
@@ -501,14 +532,14 @@ def main():
         try:
             user_input = input(f"  {c_prompt('│ You')}: ").strip()
         except (EOFError, KeyboardInterrupt):
-            print(f"\n\n  {c_dim('Goodbye.')}")
+            print(f"\n\n  {c_dim(random.choice(FAREWELL_QUIPS))}")
             break
 
         if not user_input:
             continue
 
         if user_input.lower() in ("quit", "exit", "q"):
-            print(f"\n  {c_dim('Goodbye.')}")
+            print(f"\n  {c_dim(random.choice(FAREWELL_QUIPS))}")
             break
 
         last_prompt = user_input
@@ -553,11 +584,11 @@ def main():
             try:
                 choice = input(f"  {c_header('Choice')} [1]: ").strip()
             except (EOFError, KeyboardInterrupt):
-                print(f"\n\n  {c_dim('Goodbye.')}")
+                print(f"\n\n  {c_dim(random.choice(FAREWELL_QUIPS))}")
                 sys.exit(0)
 
             if choice.lower() in ("quit", "exit", "q"):
-                print(f"\n  {c_dim('Goodbye.')}")
+                print(f"\n  {c_dim(random.choice(FAREWELL_QUIPS))}")
                 sys.exit(0)
 
             if choice in ("", "1"):
@@ -605,7 +636,7 @@ def main():
                 break  # Back to prompt
 
             elif choice == "4":
-                print(f"\n  {c_dim('Goodbye.')}")
+                print(f"\n  {c_dim(random.choice(FAREWELL_QUIPS))}")
                 sys.exit(0)
 
             else:
