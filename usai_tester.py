@@ -183,7 +183,7 @@ def prompt_for_base_url() -> str:
     """Prompt user for the API base URL and save to .env."""
     print()
     print(c_warn("  No API base URL configured."))
-    print(c_dim("  This is your agency-specific USAi endpoint."))
+    print(c_dim("  Find your endpoint in the USAi console under the API tab (left menu)."))
     print()
 
     while True:
@@ -199,6 +199,78 @@ def prompt_for_base_url() -> str:
     os.environ["USAI_BASE_URL"] = url
     print(c_dim("  URL saved to .env"))
     return url
+
+
+# ---------------------------------------------------------------------------
+# Model discovery
+# ---------------------------------------------------------------------------
+
+def fetch_models(base_url: str, api_key: str) -> list[dict]:
+    """
+    Call /api/v1/models to get the actual available models from the API.
+    Returns a list of model dicts with at least 'id' and 'owned_by'.
+    """
+    url = f"{base_url}/api/v1/models"
+    headers = {
+        "accept": "application/json",
+        "Authorization": f"Bearer {api_key}",
+    }
+
+    try:
+        resp = requests.get(url, headers=headers, timeout=30)
+    except requests.exceptions.ConnectionError:
+        print(c_error("\n  Connection failed fetching models."))
+        print(c_dim(f"  Tried: {url}"))
+        return []
+    except requests.exceptions.Timeout:
+        print(c_error("\n  Timed out fetching models."))
+        return []
+
+    if resp.status_code == 401:
+        print(c_error("\n  Authentication failed (401) fetching models."))
+        return []
+
+    if resp.status_code != 200:
+        print(c_error(f"\n  Failed to fetch models: HTTP {resp.status_code}"))
+        try:
+            print(c_dim(f"  {resp.json()}"))
+        except Exception:
+            print(c_dim(f"  {resp.text[:300]}"))
+        return []
+
+    data = resp.json()
+    models = data.get("data", [])
+    return models
+
+
+def build_model_list(api_models: list[dict], config: dict) -> list[dict]:
+    """
+    Build the working model list from the API response.
+    Uses the actual model IDs from the API. Merges in any config overrides
+    (temp ranges, defaults) if they exist, but the API is the source of truth.
+    """
+    # Config models keyed by ID for quick lookup
+    config_lookup = {}
+    for m in config.get("models", []):
+        config_lookup[m["id"]] = m
+
+    result = []
+    for api_model in api_models:
+        model_id = api_model.get("id", "")
+        owned_by = api_model.get("owned_by", "Unknown")
+
+        # Check if config has overrides for this model
+        cfg = config_lookup.get(model_id, {})
+
+        result.append({
+            "id": model_id,
+            "name": cfg.get("name", model_id),  # fall back to ID as display name
+            "provider": cfg.get("provider", owned_by),
+            "temp_range": cfg.get("temp_range", [0.0, 1.0]),
+            "temp_default": cfg.get("temp_default", 0.5),
+        })
+
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -284,10 +356,15 @@ def display_response(response: requests.Response, model_id: str, config: dict):
         # Token usage
         usage = data.get("usage", {})
         if usage:
-            prompt_tok = usage.get("prompt_tokens", "?")
-            comp_tok = usage.get("completion_tokens", "?")
-            total_tok = usage.get("total_tokens", "?")
-            print(c_dim(f"  tokens: {prompt_tok} in → {comp_tok} out ({total_tok} total)"))
+            prompt_tok = usage.get("prompt_tokens", 0)
+            comp_tok = usage.get("completion_tokens", 0)
+            api_total = usage.get("total_tokens", 0)
+            computed_total = prompt_tok + comp_tok
+            if api_total != computed_total and api_total > 0:
+                print(c_dim(f"  tokens: {prompt_tok} in → {comp_tok} out ({computed_total} total)"))
+                print(c_warn(f"  note: API reported {api_total} total tokens (mismatch)"))
+            else:
+                print(c_dim(f"  tokens: {prompt_tok} in → {comp_tok} out ({computed_total} total)"))
 
     elif response.status_code == 401:
         print(c_error("\n  Authentication failed (401)."))
@@ -313,7 +390,7 @@ def display_model_menu(config: dict) -> str | None:
     """Show model selection menu, return chosen model ID."""
     models = config.get("models", [])
     if not models:
-        print(c_error("  No models configured."))
+        print(c_error("  No models available."))
         return None
 
     print()
@@ -381,16 +458,48 @@ def main():
     if not api_key or api_key == "your-api-key-here":
         api_key = prompt_for_api_key()
 
-    # Set current model
-    current_model = config.get("default_model", "gemini-2.5-flash")
-    model_info = get_model_by_id(config, current_model)
-    if not model_info:
-        print(c_warn(f"  Default model '{current_model}' not in config. Pick one:"))
+    # Fetch live model list from the API
+    print(c_dim("  Fetching available models from API..."))
+    api_models = fetch_models(base_url, api_key)
+
+    # Handle auth failure during model fetch
+    while not api_models:
+        print(c_warn("\n  Could not retrieve models."))
+        print(c_dim("  This usually means bad URL, bad key, or no network."))
+        retry = input(f"\n  {c_header('r')}etry / new {c_header('k')}ey / new {c_header('u')}rl / {c_header('q')}uit: ").strip().lower()
+        if retry == "q":
+            sys.exit(0)
+        elif retry == "k":
+            api_key = prompt_for_api_key("Enter a new API key")
+        elif retry == "u":
+            base_url = prompt_for_base_url()
+        # retry (or any other input) just tries again
+        print(c_dim("\n  Retrying..."))
+        api_models = fetch_models(base_url, api_key)
+
+    # Build working model list (API is source of truth, config provides overrides)
+    live_models = build_model_list(api_models, config)
+    config["models"] = live_models
+
+    print(c_dim(f"  Found {len(live_models)} models."))
+
+    # Pick default model
+    default_id = config.get("default_model", "")
+    model_info = get_model_by_id(config, default_id)
+    if model_info:
+        current_model = default_id
+    else:
+        # Default not found in live list — let user pick
+        if default_id:
+            print(c_warn(f"  Default model '{default_id}' not available. Pick one:"))
+        else:
+            print(c_dim("  Select a model to start:"))
         current_model = display_model_menu(config)
         if not current_model:
             sys.exit(1)
         model_info = get_model_by_id(config, current_model)
 
+    print()
     print(f"  {c_dim('Endpoint:')} {base_url}")
     print(f"  {c_dim('Model:')}    {c_model(model_info['name'])}")
     print(f"  {c_dim('Type')} {c_header('quit')} {c_dim('or')} {c_header('exit')} {c_dim('to leave.')}")
@@ -450,6 +559,7 @@ def main():
             print(f"  {c_menu('1')}. {c_dim('New prompt (default — just hit Enter)')}")
             print(f"  {c_menu('2')}. {c_dim('Compare — same prompt, different model')}")
             print(f"  {c_menu('3')}. {c_dim('Switch model')}")
+            print(f"  {c_menu('4')}. {c_dim('Exit')}")
             print()
 
             try:
@@ -502,8 +612,12 @@ def main():
                     print(f"\n  {c_dim('Now using:')} {c_model(model_info['name'])}")
                 break  # Back to prompt
 
+            elif choice == "4":
+                print(f"\n  {c_dim('Goodbye.')}")
+                sys.exit(0)
+
             else:
-                print(c_dim("  Just 1, 2, or 3."))
+                print(c_dim("  Just 1, 2, 3, or 4."))
 
 
 if __name__ == "__main__":

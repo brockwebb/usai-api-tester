@@ -1,13 +1,19 @@
 # USAi API Tester Configuration
 # Non-secret configuration for the USAi API gateway
 
-# Base URL for the USAi API (update with your agency endpoint)
+# Base URL for the USAi API
+# Find your endpoint in the USAi console under the API tab (left menu)
 base_url: "https://your-agency-endpoint.usai.gov"
 
-# Default model to use on startup
+# Default model to use on startup (must match an ID from the API)
+# The app fetches the live model list from /api/v1/models on startup.
+# If this ID isn't in the live list, you'll be prompted to pick one.
 default_model: "gemini-2.5-flash"
 
-# Available models and metadata
+# Optional: display name and temperature overrides for known models.
+# These are NOT the source of truth for what models exist — the API is.
+# If a model ID from the API matches one here, the name/temp settings
+# are used. Otherwise the model ID is used as the display name.
 models:
   - id: "gemini-2.5-flash"
     name: "Gemini 2.5 Flash"
@@ -21,31 +27,31 @@ models:
     temp_range: [0.0, 2.0]
     temp_default: 1.0
 
-  - id: "claude_3_haiku"
-    name: "Claude Haiku 3.5"
+  - id: "claude-3-5-haiku-20241022"
+    name: "Claude 3.5 Haiku"
     provider: "Anthropic"
     temp_range: [0.0, 1.0]
     temp_default: 0.5
 
-  - id: "claude_4_5_sonnet"
+  - id: "claude-sonnet-4-5-20241022"
     name: "Claude Sonnet 4.5"
     provider: "Anthropic"
     temp_range: [0.0, 1.0]
     temp_default: 0.5
 
-  - id: "claude_4_5_opus"
+  - id: "claude-opus-4-5-20250521"
     name: "Claude Opus 4.5"
     provider: "Anthropic"
     temp_range: [0.0, 1.0]
     temp_default: 0.5
 
-  - id: "llama3211b"
+  - id: "meta-llama/Llama-3.2-11B-Vision-Instruct"
     name: "Llama 3.2 11B"
     provider: "Meta"
     temp_range: [0.0, 1.0]
     temp_default: 0.5
 
-  - id: "llama4_maverick"
+  - id: "meta-llama/Llama-4-Maverick-17B-128E-Instruct"
     name: "Llama 4 Maverick"
     provider: "Meta"
     temp_range: [0.0, 1.0]
