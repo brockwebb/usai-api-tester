@@ -285,10 +285,17 @@ def build_model_list(api_models: list[dict], config: dict) -> list[dict]:
     for m in config.get("models", []):
         config_lookup[m["id"]] = m
 
+    # Known patterns for embedding-only models (not usable with chat completions)
+    EMBEDDING_PATTERNS = ["embedding", "cohere"]
+
     result = []
     for api_model in api_models:
         model_id = api_model.get("id", "")
         owned_by = api_model.get("owned_by", "Unknown")
+
+        # Skip embedding models — they don't work with chat completions
+        if any(p in model_id.lower() for p in EMBEDDING_PATTERNS):
+            continue
 
         # Check if config has overrides for this model
         cfg = config_lookup.get(model_id, {})
