@@ -1,5 +1,7 @@
 # usai-api-tester
 
+> **Disclaimer:** This is an independent, open-source project. It is **not** an official product of, affiliated with, endorsed by, or sponsored by the U.S. Government, the General Services Administration (GSA), or any federal agency. USAi is a government service; this tool is a community-built utility for testing its API. Use at your own discretion.
+
 A minimal CLI tool for testing and exploring the [USAi](https://www.usai.gov) federal government AI gateway API.
 
 > "It looks like you're trying to query a federal AI. Would you like help with that?"
