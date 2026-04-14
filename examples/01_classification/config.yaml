@@ -1,0 +1,32 @@
+# Classification project config
+# This file is passed to the API manager
+
+# Model settings
+model: "gemini-2.5-flash"
+system_prompt: |
+  You are a text classifier. Classify the given text into exactly one
+  of the provided categories. Respond with ONLY the category name,
+  nothing else.
+max_tokens: 50
+temperature: 0.0
+
+# API manager settings
+rate_limit: 3
+max_retries: 5
+backoff_base: 2.0
+backoff_jitter: true
+log_file: "output/run.jsonl"
+checkpoint_file: "output/checkpoint.json"
+
+# Project-specific settings
+input_file: "data.csv"
+output_file: "output/results.csv"
+text_column: "text"
+categories:
+  - Technology
+  - Science
+  - Business
+  - Health
+  - Education
+  - Government
+  - Environment

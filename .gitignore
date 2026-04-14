@@ -68,3 +68,8 @@ Thumbs.db
 cc_tasks/
 CLAUDE.md
 .claude/
+
+# Example outputs
+examples/*/output/
+examples/*/*.jsonl
+examples/*/checkpoint.json
