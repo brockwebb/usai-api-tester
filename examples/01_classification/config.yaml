@@ -1,13 +1,15 @@
 # Classification project config
-# This file is passed to the API manager
 
 # Model settings
 model: "gemini-2.5-flash"
 system_prompt: |
-  You are a text classifier. Classify the given text into exactly one
-  of the provided categories. Respond with ONLY the category name,
-  nothing else.
-max_tokens: 50
+  You are a text classifier. You will be given a text and a list of categories.
+  Classify the text into exactly one category.
+  Respond with ONLY a JSON object in this exact format:
+  {"category": "CategoryName", "confidence": 0.85}
+  where confidence is your estimated confidence from 0.0 to 1.0.
+  Do not include any other text in your response.
+max_tokens: 256
 temperature: 0.0
 
 # API manager settings
@@ -20,7 +22,7 @@ checkpoint_file: "output/checkpoint.json"
 
 # Project-specific settings
 input_file: "data.csv"
-output_file: "output/results.csv"
+output_dir: "output"
 text_column: "text"
 categories:
   - Technology

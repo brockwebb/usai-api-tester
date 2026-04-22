@@ -78,12 +78,24 @@ class APIManager:
         self.max_retries = max_retries
         self.backoff_base = backoff_base
         self.backoff_jitter = backoff_jitter
-        self.log_file = log_file
         self.checkpoint_file = checkpoint_file
         self.env_path = env_path
 
+        # Run timestamp — used for log filename and exposed to callers so they
+        # can produce matching output filenames for the same run.
+        self.run_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        self.log_file = self._timestamp_filename(log_file, self.run_timestamp)
+
         # Rate limiter state: timestamps of recent calls
         self._call_times: list[float] = []
+
+    @staticmethod
+    def _timestamp_filename(path: str, stamp: str) -> str:
+        """Insert stamp before the extension: run.jsonl -> run_20260422_143022.jsonl."""
+        p = Path(path)
+        if p.suffix:
+            return str(p.with_name(f"{p.stem}_{stamp}{p.suffix}"))
+        return f"{path}_{stamp}"
 
     @classmethod
     def from_config(cls, config_path: str) -> "APIManager":
@@ -161,6 +173,9 @@ class APIManager:
         total = len(items)
         start_time = time.time()
         processed = 0
+        succeeded = 0
+        failed = 0
+        skipped = 0
 
         for idx, item in enumerate(items):
             key = item_key_fn(item, idx)
@@ -171,6 +186,7 @@ class APIManager:
                 sys.stdout.flush()
                 results.append(checkpoint[key])
                 processed += 1
+                skipped += 1
                 self._print_progress(processed, total, start_time)
                 continue
 
@@ -181,11 +197,15 @@ class APIManager:
 
             if result["status"] == 200:
                 self._save_checkpoint(key, result)
+                succeeded += 1
+            else:
+                failed += 1
 
             self._print_progress(processed, total, start_time)
 
         # Final newline so next output doesn't clobber the progress bar
         print()
+        print(f"  Done: {succeeded} succeeded, {failed} failed, {skipped} skipped (from checkpoint)")
         return results
 
     def call(self, prompt: str) -> dict:
@@ -269,6 +289,7 @@ class APIManager:
             data = resp.json()
             choice = data.get("choices", [{}])[0]
             response_text = choice.get("message", {}).get("content", "")
+            finish_reason = choice.get("finish_reason", "unknown")
             usage = data.get("usage", {})
             tokens_in = usage.get("prompt_tokens", 0)
             tokens_out = usage.get("completion_tokens", 0)
@@ -279,6 +300,7 @@ class APIManager:
                 "response": response_text,
                 "model": self.model,
                 "status": status,
+                "finish_reason": finish_reason,
                 "tokens_in": tokens_in,
                 "tokens_out": tokens_out,
                 "latency": latency,
@@ -288,6 +310,7 @@ class APIManager:
                 "key": key,
                 "model": self.model,
                 "status": status,
+                "finish_reason": finish_reason,
                 "tokens_in": tokens_in,
                 "tokens_out": tokens_out,
                 "latency": round(latency, 3),
@@ -317,6 +340,7 @@ class APIManager:
             "response": "",
             "model": "",
             "status": status,
+            "finish_reason": "error",
             "tokens_in": 0,
             "tokens_out": 0,
             "latency": 0.0,

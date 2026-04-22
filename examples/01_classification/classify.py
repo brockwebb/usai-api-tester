@@ -3,7 +3,7 @@
 Text Classification Example — USAi API
 
 Reads text items from a CSV, classifies each using the configured model,
-writes results to output CSV.
+writes results to a timestamped output CSV.
 
 Usage:
     cd examples/01_classification
@@ -11,6 +11,7 @@ Usage:
 """
 
 import csv
+import json
 import sys
 from pathlib import Path
 
@@ -21,6 +22,25 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from api_manager import APIManager
 
 
+def parse_response(response_text: str) -> dict:
+    """Parse model response, expecting JSON with category and confidence."""
+    try:
+        text = response_text.strip()
+        # Handle cases where the model wraps JSON in markdown code fences
+        if text.startswith("```"):
+            text = text.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
+        parsed = json.loads(text)
+        return {
+            "category": parsed.get("category", "PARSE_ERROR"),
+            "confidence": parsed.get("confidence", None),
+        }
+    except (json.JSONDecodeError, AttributeError):
+        return {
+            "category": response_text.strip()[:100],
+            "confidence": None,
+        }
+
+
 def main():
     # Load project config
     config_path = Path(__file__).resolve().parent / "config.yaml"
@@ -28,7 +48,7 @@ def main():
         config = yaml.safe_load(f)
 
     # Create output directory
-    output_dir = Path(__file__).resolve().parent / "output"
+    output_dir = Path(__file__).resolve().parent / config.get("output_dir", "output")
     output_dir.mkdir(exist_ok=True)
 
     # Load data
@@ -55,27 +75,57 @@ def main():
         item_key_fn=lambda item, idx: item.get("id", str(idx)),
     )
 
-    # Write results
-    output_path = Path(__file__).resolve().parent / config["output_file"]
+    # Parse responses and assemble CSV rows
+    output_fname = f"results_{manager.run_timestamp}.csv"
+    output_path = output_dir / output_fname
+
+    enriched = []
+    for r in results:
+        parsed = parse_response(r.get("response", ""))
+        enriched.append({
+            "key": r["key"],
+            "text": r["input"].get(text_col, "") if r.get("input") else "",
+            "category": parsed["category"],
+            "confidence": parsed["confidence"],
+            "finish_reason": r.get("finish_reason", ""),
+            "model": r.get("model", ""),
+            "tokens_in": r.get("tokens_in", 0),
+            "tokens_out": r.get("tokens_out", 0),
+            "latency": r.get("latency", 0.0),
+        })
+
     with open(output_path, "w", newline="") as f:
         writer = csv.DictWriter(
             f,
-            fieldnames=["id", "text", "category", "model", "tokens_in", "tokens_out", "latency"],
+            fieldnames=[
+                "id", "text", "category", "confidence",
+                "finish_reason", "model", "tokens_in", "tokens_out", "latency",
+            ],
         )
         writer.writeheader()
-        for r in results:
+        for row in enriched:
             writer.writerow({
-                "id": r["key"],
-                "text": r["input"].get(text_col, "") if r["input"] else "",
-                "category": r["response"].strip(),
-                "model": r["model"],
-                "tokens_in": r["tokens_in"],
-                "tokens_out": r["tokens_out"],
-                "latency": f"{r['latency']:.2f}",
+                "id": row["key"],
+                "text": row["text"],
+                "category": row["category"],
+                "confidence": "" if row["confidence"] is None else f"{row['confidence']:.2f}",
+                "finish_reason": row["finish_reason"],
+                "model": row["model"],
+                "tokens_in": row["tokens_in"],
+                "tokens_out": row["tokens_out"],
+                "latency": f"{row['latency']:.2f}",
             })
 
-    print(f"\n  Results written to {config['output_file']}")
-    print(f"  Log written to {config['log_file']}")
+    print(f"\n  Results written to {output_path}")
+    print(f"  Log written to {manager.log_file}")
+
+    # Flag truncated responses — finish_reason == "length" means max_tokens was too low
+    truncated = [row for row in enriched if row["finish_reason"] == "length"]
+    if truncated:
+        print(f"\n  WARNING: {len(truncated)} responses were truncated (max_tokens too low)")
+        print(f"  Affected items: {[row['key'] for row in truncated[:5]]}")
+        if len(truncated) > 5:
+            print(f"  ...and {len(truncated) - 5} more")
 
 
 if __name__ == "__main__":
